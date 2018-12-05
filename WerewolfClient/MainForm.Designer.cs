@@ -59,6 +59,7 @@
             this.LBPeriod = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
+            this.BtnLeave = new System.Windows.Forms.Button();
             this.GBPlayers.SuspendLayout();
             this.GBChat.SuspendLayout();
             this.GBAction.SuspendLayout();
@@ -429,11 +430,23 @@
             this.label1.TabIndex = 0;
             this.label1.Text = "Day #";
             // 
+            // BtnLeave
+            // 
+            this.BtnLeave.ForeColor = System.Drawing.Color.Red;
+            this.BtnLeave.Location = new System.Drawing.Point(794, 22);
+            this.BtnLeave.Name = "BtnLeave";
+            this.BtnLeave.Size = new System.Drawing.Size(75, 46);
+            this.BtnLeave.TabIndex = 10;
+            this.BtnLeave.Text = "Leave Game";
+            this.BtnLeave.UseVisualStyleBackColor = true;
+            this.BtnLeave.Click += new System.EventHandler(this.BtnLeave_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 508);
+            this.ClientSize = new System.Drawing.Size(876, 508);
+            this.Controls.Add(this.BtnLeave);
             this.Controls.Add(this.GBStatus);
             this.Controls.Add(this.GBAction);
             this.Controls.Add(this.GBChat);
@@ -483,6 +496,7 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button BtnAction;
+        private System.Windows.Forms.Button BtnLeave;
     }
 }
 

@@ -25,6 +25,7 @@ namespace WerewolfClient
         private bool _actionActivated;
         private string _myRole;
         private bool _isDead;
+        private bool _isLeaveGame;
         private List<Player> players = null;
         public MainForm()
         {
@@ -42,8 +43,10 @@ namespace WerewolfClient
             EnableButton(BtnJoin, true);
             EnableButton(BtnAction, false);
             EnableButton(BtnVote, false);
+            EnableButton(BtnLeave, false);
             _myRole = null;
             _isDead = false;
+            _isLeaveGame = false;
         }
 
         private void OnTimerEvent(object sender, EventArgs e)
@@ -209,6 +212,7 @@ namespace WerewolfClient
                         }
                         EnableButton(BtnVote, true);
                         EnableButton(BtnJoin, false);
+                        EnableButton(BtnLeave, true);
                         UpdateAvatar(wm);
                         break;
                     case EventEnum.SwitchToDayTime:
@@ -293,6 +297,20 @@ namespace WerewolfClient
                             }
                         }
                         break;
+                    case EventEnum.LeaveGame:
+                        if (wm.EventPayloads["Success"] == WerewolfModel.TRUE)
+                        {
+                            _updateTimer.Enabled = false;
+                            AddChatMessage("You have leave game.");
+                            EnableButton(BtnJoin, true);
+                            EnableButton(BtnAction, false);
+                            EnableButton(BtnVote, false);
+                            EnableButton(BtnLeave, false);
+                            break;
+                        }
+
+                        //UpdateAvatar(wm);
+                        break;
                 }
                 // need to reset event
                 wm.Event = EventEnum.NOP;
@@ -350,6 +368,14 @@ namespace WerewolfClient
                 BtnVote.BackColor = Button.DefaultBackColor;
                 _voteActivated = false;
             }
+        }
+
+        private void BtnLeave_Click(object sender, EventArgs e)
+        {
+            _isLeaveGame = !_isLeaveGame;
+            WerewolfCommand wcmd = new WerewolfCommand();
+            wcmd.Action = CommandEnum.LeaveGame;
+            controller.ActionPerformed(wcmd);
         }
 
         private void BtnPlayerX_Click(object sender, EventArgs e)

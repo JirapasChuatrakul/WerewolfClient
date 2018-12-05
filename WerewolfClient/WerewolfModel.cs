@@ -58,6 +58,7 @@ namespace WerewolfClient
             Alive = 15,
             Chat = 16,
             ChatMessage = 17,
+            LeaveGame = 18,
         }
         public const string ROLE_SEER = "Seer";
         public const string ROLE_AURA_SEER = "Aura Seer";
@@ -97,7 +98,7 @@ namespace WerewolfClient
 
         private Boolean _isPlaying = false;
         // default base path
-        private const string BASE_PATH = "http://localhost:2343/werewolf/";
+        private const string BASE_PATH = "http://project-ile.net:2342/werewolf/";
         private Action _dayVoteAction = null;
         private Action _nightVoteAction = null;
         private Action _playerAction = null;
@@ -148,184 +149,190 @@ namespace WerewolfClient
                     Console.WriteLine(ex.Message);
                     return;
                 }
-                if (!_isPlaying)
-                {
-                    if (_game.Status == Game.StatusEnum.Playing)
+                //try {
+                    if (!_isPlaying)
                     {
-                        // game is tarted, switch to game mode
-                        Console.WriteLine("Game #{0} is started, switch to game mode.", _game.Id);
-                        _isPlaying = true;
-                        _currentPeriod = _game.Period;
-                        _currentTime = 0;
-                        _currentDay = _game.Day;
-
-                        if (_player.Session != null && _player.Session != "")
+                        if (_game.Status == Game.StatusEnum.Playing)
                         {
-                            try
-                            {
-                                _game = _gameEP.GameSessionSessionIDGet(_player.Session);
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine(ex.Message);
-                                return;
-                            }
-                            foreach (Player player in _game.Players)
-                            {
-                                if (player.Id == _player.Id)
-                                {
-                                    //_player = player;
-                                    _player.Role = player.Role;
-                                    _playerRole = player.Role;
-                                }
-                            }
-                            _event = EventEnum.GameStarted;
-                            if (_playerRole != null)
+                            // game is tarted, switch to game mode
+                            Console.WriteLine("Game #{0} is started, switch to game mode.", _game.Id);
+                            _isPlaying = true;
+                            _currentPeriod = _game.Period;
+                            _currentTime = 0;
+                            _currentDay = _game.Day;
+
+                            if (_player.Session != null && _player.Session != "")
                             {
                                 try
                                 {
-                                    _playerActions = _actionEP.FindActionsByRoleId(_playerRole.Id);
+                                    _game = _gameEP.GameSessionSessionIDGet(_player.Session);
                                 }
                                 catch (Exception ex)
                                 {
                                     Console.WriteLine(ex.Message);
                                     return;
                                 }
-                                _eventPayloads["Player.Role.Id"] = _playerRole.Id.ToString();
-                                _eventPayloads["Player.Role.Name"] = _playerRole.Name;
-                                foreach (Action action in _playerActions)
+                                foreach (Player player in _game.Players)
                                 {
-                                    if (action.Name == ACTION_DAY_VOTE)
+                                    if (player.Id == _player.Id)
                                     {
-                                        _dayVoteAction = action;
+                                        //_player = player;
+                                        _player.Role = player.Role;
+                                        _playerRole = player.Role;
                                     }
-                                    else if (action.Name == ACTION_NIGHT_VOTE)
+                                }
+                                _event = EventEnum.GameStarted;
+                                if (_playerRole != null)
+                                {
+                                    try
                                     {
-                                        _nightVoteAction = action;
+                                        _playerActions = _actionEP.FindActionsByRoleId(_playerRole.Id);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine(ex.Message);
+                                        return;
+                                    }
+                                    _eventPayloads["Player.Role.Id"] = _playerRole.Id.ToString();
+                                    _eventPayloads["Player.Role.Name"] = _playerRole.Name;
+                                    foreach (Action action in _playerActions)
+                                    {
+                                        if (action.Name == ACTION_DAY_VOTE)
+                                        {
+                                            _dayVoteAction = action;
+                                        }
+                                        else if (action.Name == ACTION_NIGHT_VOTE)
+                                        {
+                                            _nightVoteAction = action;
+                                        }
+                                        else
+                                        {
+                                            _playerAction = action;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    //TODO should show error, issue #13
+                                    _eventPayloads["Player.Role.Name"] = "";
+                                }
+                            }
+                        }
+                        NotifyAll();
+                    }
+                    else //_isPlaying
+                    {
+                        if (_game.Status == Game.StatusEnum.Playing) // still playing
+                        {
+                            foreach (Player player in _players)
+                            {
+                                Player prevPlayer = _prevPlayers.Where(p => p.Id == player.Id).Single<Player>();
+                                if (player.Status == Player.StatusEnum.Shotdead && prevPlayer.Status != Player.StatusEnum.Shotdead)
+                                {
+                                    if (player.Id == Player.Id)
+                                    {
+                                        _event = EventEnum.YouShotDead;
                                     }
                                     else
                                     {
-                                        _playerAction = action;
+                                        _event = EventEnum.OtherShotDead;
+                                        _eventPayloads["Game.Target.Id"] = player.Id.ToString();
+                                        _eventPayloads["Game.Target.Name"] = player.Name;
                                     }
+                                    NotifyAll();
+                                }
+                                if (player.Status == Player.StatusEnum.Alive && prevPlayer.Status != Player.StatusEnum.Alive)
+                                {
+                                    _event = EventEnum.Alive;
+                                    if (player.Id != Player.Id)
+                                    {
+                                        _eventPayloads["Game.Target.Id"] = player.Id.ToString();
+                                        _eventPayloads["Game.Target.Name"] = player.Name;
+                                    }
+                                    NotifyAll();
+                                }
+                            }
+                            _currentTime++;
+                            if (_game.Period != _currentPeriod) // change period
+                            {
+                                if (_game.Period == Game.PeriodEnum.Day)
+                                {
+                                    _event = EventEnum.SwitchToDayTime;
+                                    _eventPayloads["Game.Current.Period"] = "Day";
+                                    _eventPayloads["Game.Current.Day"] = _game.Day.ToString();
+                                    _currentTime = 0;
+                                    NotifyAll();
+                                }
+                                else if (_game.Period == Game.PeriodEnum.Night)
+                                {
+                                    _event = EventEnum.SwitchToNightTime;
+                                    _eventPayloads["Game.Current.Period"] = "Night";
+                                    _eventPayloads["Game.Current.Day"] = _game.Day.ToString();
+                                    _currentTime = 0;
+                                    NotifyAll();
+                                }
+                                _currentPeriod = _game.Period;
+                            }
+                            else if (_game.Day != _currentDay) // Update Day
+                            {
+                                _event = EventEnum.UpdateDay;
+                                _eventPayloads["Game.Current.Day"] = _game.Day.ToString();
+                                _currentDay = _game.Day;
+                                NotifyAll();
+                            }
+                            // We should update event tick as well.
+                            _event = EventEnum.UpdateTime;
+                            _eventPayloads["Game.Current.Time"] = _currentTime.ToString();
+                            NotifyAll();
+                        }
+                        else
+                        {
+                            _event = EventEnum.GameStopped;
+                            _eventPayloads["Game.Outcome"] = _game.Outcome.ToString();
+                            NotifyAll();
+                        }
+                        try
+                        {
+                            //List<ChatMessage> messages = _chatEP.ChatSessionIDChatIDGet(_player.Session, latestChatId);
+                            ApiResponse<List<ChatMessage>> localResponse = _chatEP.ChatSessionIDChatIDGetWithHttpInfo(_player.Session, latestChatId);
+                            if (localResponse.StatusCode == 200)
+                            {
+                                List<ChatMessage> messages = localResponse.Data;
+                                long? maxChatId = messages.Max<ChatMessage>(m => m.Id);
+                                if (maxChatId != null && maxChatId >= latestChatId)
+                                {
+                                    latestChatId = maxChatId + 1;
+                                }
+                                Console.WriteLine("Latest chat id is {0} status is {1}", latestChatId, localResponse.StatusCode);
+                                StringBuilder sb = new StringBuilder();
+                                foreach (ChatMessage message in messages)
+                                {
+                                    // I hate this
+                                    _event = EventEnum.ChatMessage;
+                                    _eventPayloads["Success"] = TRUE;
+                                    _eventPayloads["Game.Chatter"] = _players.Where(p => p.Id == message.Playerid).Single().Name;
+                                    _eventPayloads["Game.ChatMessage"] = message.Message.ToString();
+                                    NotifyAll();
                                 }
                             }
                             else
                             {
-                                //TODO should show error, issue #13
-                                _eventPayloads["Player.Role.Name"] = "";
+                                Console.WriteLine("No chat data because of " + localResponse.StatusCode);
                             }
                         }
-                    }
-                    NotifyAll();
-                }
-                else //_isPlaying
-                {
-                    if (_game.Status == Game.StatusEnum.Playing) // still playing
-                    {
-                        foreach (Player player in _players)
+                        catch (Exception ex)
                         {
-                            Player prevPlayer = _prevPlayers.Where(p => p.Id == player.Id).Single<Player>();
-                            if (player.Status == Player.StatusEnum.Shotdead && prevPlayer.Status != Player.StatusEnum.Shotdead)
-                            {
-                                if (player.Id == Player.Id)
-                                {
-                                    _event = EventEnum.YouShotDead;
-                                }
-                                else
-                                {
-                                    _event = EventEnum.OtherShotDead;
-                                    _eventPayloads["Game.Target.Id"] = player.Id.ToString();
-                                    _eventPayloads["Game.Target.Name"] = player.Name;
-                                }
-                                NotifyAll();
-                            }
-                            if (player.Status == Player.StatusEnum.Alive && prevPlayer.Status != Player.StatusEnum.Alive)
-                            {
-                                _event = EventEnum.Alive;
-                                if (player.Id != Player.Id)
-                                {
-                                    _eventPayloads["Game.Target.Id"] = player.Id.ToString();
-                                    _eventPayloads["Game.Target.Name"] = player.Name;
-                                }
-                                NotifyAll();
-                            }
+                            Console.WriteLine(ex.ToString());
                         }
-                        _currentTime++;
-                        if (_game.Period != _currentPeriod) // change period
-                        {
-                            if (_game.Period == Game.PeriodEnum.Day)
-                            {
-                                _event = EventEnum.SwitchToDayTime;
-                                _eventPayloads["Game.Current.Period"] = "Day";
-                                _eventPayloads["Game.Current.Day"] = _game.Day.ToString();
-                                _currentTime = 0;
-                                NotifyAll();
-                            }
-                            else if (_game.Period == Game.PeriodEnum.Night)
-                            {
-                                _event = EventEnum.SwitchToNightTime;
-                                _eventPayloads["Game.Current.Period"] = "Night";
-                                _eventPayloads["Game.Current.Day"] = _game.Day.ToString();
-                                _currentTime = 0;
-                                NotifyAll();
-                            }
-                            _currentPeriod = _game.Period;
-                        }
-                        else if (_game.Day != _currentDay) // Update Day
-                        {
-                            _event = EventEnum.UpdateDay;
-                            _eventPayloads["Game.Current.Day"] = _game.Day.ToString();
-                            _currentDay = _game.Day;
-                            NotifyAll();
-                        }
-                        // We should update event tick as well.
-                        _event = EventEnum.UpdateTime;
-                        _eventPayloads["Game.Current.Time"] = _currentTime.ToString();
-                        NotifyAll();
-                    }
-                    else
-                    {
-                        _event = EventEnum.GameStopped;
-                        _eventPayloads["Game.Outcome"] = _game.Outcome.ToString();
-                        NotifyAll();
-                    }
-                    try
-                    {
-                        //List<ChatMessage> messages = _chatEP.ChatSessionIDChatIDGet(_player.Session, latestChatId);
-                        ApiResponse<List<ChatMessage>> localResponse = _chatEP.ChatSessionIDChatIDGetWithHttpInfo(_player.Session, latestChatId);
-                        if (localResponse.StatusCode == 200)
-                        {
-                            List<ChatMessage> messages = localResponse.Data;
-                            long? maxChatId = messages.Max<ChatMessage>(m => m.Id);
-                            if (maxChatId != null && maxChatId >= latestChatId)
-                            {
-                                latestChatId = maxChatId + 1;
-                            }
-                            Console.WriteLine("Latest chat id is {0} status is {1}", latestChatId, localResponse.StatusCode);
-                            StringBuilder sb = new StringBuilder();
-                            foreach (ChatMessage message in messages)
-                            {
-                                // I hate this
-                                _event = EventEnum.ChatMessage;
-                                _eventPayloads["Success"] = TRUE;
-                                _eventPayloads["Game.Chatter"] = _players.Where(p => p.Id == message.Playerid).Single().Name;
-                                _eventPayloads["Game.ChatMessage"] = message.Message.ToString();
-                                NotifyAll();
-                            }
-                        }
-                        else
-                        {
-                            Console.WriteLine("No chat data because of " + localResponse.StatusCode);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.ToString());
-                    }
 
-                }
+                    }
+                /*}
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                }*/
             }
-        }
+            }
 
         public void JoinGame()
         {
@@ -363,6 +370,38 @@ namespace WerewolfClient
             }
             NotifyAll();
         }
+
+        public void LeaveGame()
+        {
+            try
+            {
+                try
+                {
+                    _game = _gameEP.GameSessionSessionIDGet(_player.Session);
+                    _currentTime = 0;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                    _game = null;
+                }
+                Console.WriteLine("Leave game #{0}", _game.Id);
+                _event = EventEnum.LeaveGame;
+                _eventPayloads["Success"] = TRUE;
+                _isPlaying = false;
+                _eventPayloads["Game.Id"] = null;
+                _game = _gameEP.GameSessionSessionIDDelete(_player.Session);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                _event = EventEnum.LeaveGame;
+                _eventPayloads["Success"] = FALSE;
+                _eventPayloads["Error"] = ex.ToString();
+            }
+            NotifyAll();
+        }
+
         public void SignIn(string server, string login, string password)
         {
             try

@@ -72,5 +72,11 @@ namespace WerewolfClient
             wcmd.Payloads = new Dictionary<string, string>() { { "Login", TbLogin.Text}, { "Password",TbPassword.Text}, { "Server", TBServer.Text } };
             controller.ActionPerformed(wcmd);
         }
+
+
+        private void TBServer_TextChanged(object sender, EventArgs e)
+        {
+
+        }
     }
 }

@@ -127,7 +127,8 @@
             this.TBServer.Name = "TBServer";
             this.TBServer.Size = new System.Drawing.Size(273, 29);
             this.TBServer.TabIndex = 8;
-            this.TBServer.Text = "http://localhost:2343/werewolf/";
+            this.TBServer.Text = "http://project-ile.net:2342/werewolf/";
+            this.TBServer.TextChanged += new System.EventHandler(this.TBServer_TextChanged);
             // 
             // Login
             // 
